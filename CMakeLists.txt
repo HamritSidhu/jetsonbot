@@ -197,3 +197,9 @@ add_executable(recognition src/recognition.cpp)
 target_link_libraries(recognition ${catkin_LIBRARIES})
 add_dependencies(recognition fydp_generate_messages_cpp)
 
+add_executable(predictor src/predictor.cpp)
+target_link_libraries(predictor ${catkin_LIBRARIES})
+add_dependencies(predictor fydp_generate_messages_cpp)
+
+
+

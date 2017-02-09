@@ -243,7 +243,7 @@ fydp::MoveData find_person_in_img(Mat input_image, String description = "test") 
 	// Apply filtering
 	Mat color_filtered_image = get_person_with_color(input_image);
 	imshow("color_filtered", color_filtered_image);
-	waitKey(0);
+	//waitKey(0);
 	destroyWindow("color_filtered");
 	//imwrite("out/"+description + "_color_filtered.jpg", color_filtered_image);
 	//waitKey(0);
@@ -266,7 +266,7 @@ fydp::MoveData find_person_in_img(Mat input_image, String description = "test") 
 	//imwrite("out/" + description + "_tmplt_filtered.jpg", tmplt_filtered_image);
 	//waitKey(0);
 	imshow("tmplt_filtered", tmplt_filtered_image);
-	waitKey(0);
+	//waitKey(0);
 	destroyWindow("tmplt_filtered");
 	return result;
 }
@@ -339,7 +339,7 @@ Mat takePicture(VideoCapture cap){
         Mat resultImg;
 	cap.read(resultImg);
 	imshow("cam", resultImg);
-	waitKey(1);
+	//waitKey(1);
 	destroyWindow("cam");
 	return resultImg;
 }
@@ -379,7 +379,7 @@ int main(int argc, char **argv) {
 	ros::init(argc, argv, "listener");
 	ros::NodeHandle n;
 	ros::Subscriber sub = n.subscribe("pushed", 1000, takePictureCallback);
-	ros::Publisher follower_pub = n.advertise<fydp::MoveData>("follower", 1000);
+	ros::Publisher follower_pub = n.advertise<fydp::MoveData>("camera", 1000);
 
 	ROS_INFO("before spin..");
 	ROS_INFO("Going into first while loop");
@@ -426,7 +426,7 @@ int main(int argc, char **argv) {
 	while (!snapColor) {
 		ros::spinOnce();
 	}
-	return 0;
+//	return 0;
 /*
 	ROS_INFO("out of 2nd while loop");
 
@@ -457,16 +457,15 @@ int main(int argc, char **argv) {
 
 	Mat image, new_image; 
 	fydp::MoveData move_data;
+	//int i = 0;
 	while(!shutDown){
-		image = load_hsv_image(take_picture(cap));//imread("out/img_"+to_string(i)+".jpg"));
+		image = load_hsv_image(takePicture(cap));//imread("out/img_"+to_string(i)+".jpg"));
 		image = sharpen_image(image);
 		new_image = k_means(image, 3);
 		imshow("segmented_image", new_image);
-		waitKey(0);
 		//imwrite("out/segmented_image_"+to_string(i)+".jpg", new_image);
 		//waitKey(0);
 		move_data = find_person_in_img(new_image, "");
-
 		ROS_INFO("about to publish");
 		follower_pub.publish(move_data);
 		ros::spinOnce();
