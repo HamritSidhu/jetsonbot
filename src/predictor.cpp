@@ -10,9 +10,9 @@ fydp::MoveData predictedData;
 
 void initMoveDataQueue() {
 	fydp::MoveData centroid;
-	centroid.x = 256;
+	centroid.x = 125;
 	centroid.y = 0;
-	centroid.area = 22000;
+	centroid.area = 6250;
 
 	for (int i = 0; i < queueSize; i++)
 		moveDataQueue[i] = centroid;
@@ -34,17 +34,17 @@ fydp::MoveData predictMoveData() {
         int firstOrderDifferenceAverageArea = firstOrderDifferenceSumArea / counter;
 
         predictedData.x = moveDataQueue[queueSize - 1].x + firstOrderDifferenceAverageX;
-        predictedData.area - moveDataQueue[queueSize -1].area + firstOrderDifferenceAverageArea;
+        predictedData.area = moveDataQueue[queueSize -1].area + firstOrderDifferenceAverageArea;
 
         fydp::MoveData result = predictedData;
+        ROS_INFO("%%%%%%%% Predicted Data %%%%%%%%");
+        ROS_INFO("%d", result.x);
+		ROS_INFO("%d", result.y);
+		ROS_INFO("%d", result.area);
         return result;
 }
 
 void predictionProcessing(const fydp::MoveData& msg) {
-	ROS_INFO("%d", msg.x);
-	ROS_INFO("%d", msg.y);
-	ROS_INFO("%d", msg.area);
-	
 	// updating the queue
 	for (int i = 0; i < queueSize - 1; i++) {
 		moveDataQueue[i] = moveDataQueue[i+1];

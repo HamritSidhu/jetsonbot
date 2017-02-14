@@ -50,19 +50,24 @@ vector<int> get_peak_values(Mat hist) {
 	vector<int> peak_values;
 	vector<std::pair<int, int>> peak_values_dict;
 	int window[9] = {};
-	for (int h = 4; h < hist.rows; h++)
+	for (int h = 1; h < hist.rows; h++)
 	{
-		for (int i = 4; i >= 0; i--) {
-			// Filling sliding window
-			window[i] = hist.at<float>(h + i - 4);
-			if (i != 4) {
-				window[8 - i] = hist.at<float>(h - i + 4);
-				if (window[4] < window[i] || window[4] < window[8 - i]) {
-					break;
+		if (h < 4){
+			peak_values_dict.push_back(make_pair(h, hist.at<float>(h)));
+		}
+		else{
+			for (int i = 4; i >= 0; i--) {
+				// Filling sliding window
+				window[i] = hist.at<float>(h + i - 4);
+				if (i != 4) {
+					window[8 - i] = hist.at<float>(h - i + 4);
+					if (window[4] < window[i] || window[4] < window[8 - i]) {
+						break;
+					}
 				}
-			}
-			if (i == 0 && hist.at<float>(h) > 0) {
-				peak_values_dict.push_back(make_pair(h, hist.at<float>(h)));
+				if (i == 0 && hist.at<float>(h) > 0) {
+					peak_values_dict.push_back(make_pair(h, hist.at<float>(h)));
+				}
 			}
 		}
 	}
@@ -166,14 +171,19 @@ Mat get_person_with_color(Mat img) {
 
 	int diff = 180;
 	int hue_avg = HUE_AVG;
-	for (int i = 0; i < segmented_value.size(); i++) {
-		if (abs(segmented_value[i]-HUE_AVG) < diff) {
-			diff = abs(segmented_value[i]-HUE_AVG);
-			hue_avg = segmented_value[i];
+	for (int i = 0; i < segmented_value.size(); i++) {\
+		int val = segmented_value[i]; 
+		int abs_min = min(min(abs(val+180-HUE_AVG), abs(HUE_AVG+180-val)), abs(HUE_AVG-val));
+		if (abs_min < diff) {
+			diff = abs_min;
+			hue_avg = val;
 		}
 	}
+	ROS_INFO("%%%%%% Segmented Hue Avg:%%%%%%%%%%%%%");
+	ROS_INFO("%d", hue_avg);
+	
 	Scalar lower_bound = Scalar(std::max(hue_avg - 3, 0), 0, 0);
-	Scalar upper_bound = Scalar(std::min(hue_avg + 3, 255), 255, 255);
+	Scalar upper_bound = Scalar(std::min(hue_avg + 3, 180), 255, 255);
 
 	Mat filtered_image, mask;
 	inRange(img, lower_bound, upper_bound, mask);
@@ -193,43 +203,32 @@ Mat get_person_with_color(Mat img) {
 
 Mat get_person_with_tmplt(Mat img) {
 	Point matchLoc;
-	double maxVal_found = NULL;	Point maxLoc_found; double r_found;
-
-	/* Resize original image to fit it with template. Continuously match template */
-	for (int i = 20; i >= 0; i--) {
-		float scale = 0.04*i + 0.2;
-		Mat resized = resize_img(img, (int)(scale*img.cols));
-		if (resized.rows < PERSON_TMPLT.rows || resized.cols < PERSON_TMPLT.cols) {
-			break;
-		}
-
-		double r = img.cols / resized.cols; // Resizing ratio
-
-		// Match Template, and get coordinate found
-		Mat result;
-		matchTemplate(img, PERSON_TMPLT, result, TM_CCOEFF_NORMED);
-		double minVal; double maxVal; Point minLoc; Point maxLoc;
-		minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
-
-		// If box found has better correlation, assign as new box
-		if (maxVal_found == NULL || maxVal > maxVal_found) {
-			maxVal_found = maxVal;
-			maxLoc_found = maxLoc;
-			r_found = r;
-		}
+	double maxVal_found = NULL;	Point maxLoc_found; 
+	
+	// Match Template, and get coordinate found
+	Mat result;
+	matchTemplate(img, PERSON_TMPLT, result, TM_CCOEFF_NORMED);
+	double minVal; double maxVal; Point minLoc; Point maxLoc;
+	minMaxLoc(result, &minVal, &maxVal,&minLoc, &maxLoc);
+	
+	// If box found has better correlation, assign as new box
+	if (maxVal_found == NULL || maxVal > maxVal_found) {
+		maxVal_found = maxVal;
+		maxLoc_found = maxLoc;
 	}
+	
 	// Box coordinate of the person
-	Point start_coord = Point((int)(maxLoc_found.x*r_found), (int)(maxLoc_found.y*r_found));
-	Point end_coord = Point((int)((maxLoc_found.x + PERSON_TMPLT.cols)*r_found), (int)((maxLoc_found.y + PERSON_TMPLT.rows)*r_found));
-
+	Point start_coord = Point((int)(maxLoc_found.x), (int)(maxLoc_found.y));
+	Point end_coord = Point((int)((maxLoc_found.x + PERSON_TMPLT.cols)), (int)((maxLoc_found.y + PERSON_TMPLT.rows)));
+	
 	// Create Mask
 	Mat mask = Mat::zeros(img.size(), img.type());
 	rectangle(mask, start_coord, end_coord, Scalar(255, 255, 255), CV_FILLED);
-
-	Mat result;
-	bitwise_and(img, mask, result);
-
-	return result;
+	
+	Mat final_result;
+	bitwise_and(img, mask, final_result);
+	
+	return final_result;
 }
 
 Mat hsv2gray(Mat img) {
@@ -242,32 +241,19 @@ Mat hsv2gray(Mat img) {
 fydp::MoveData find_person_in_img(Mat input_image, String description = "test") {
 	// Apply filtering
 	Mat color_filtered_image = get_person_with_color(input_image);
-	imshow("color_filtered", color_filtered_image);
-	//waitKey(0);
-	destroyWindow("color_filtered");
-	//imwrite("out/"+description + "_color_filtered.jpg", color_filtered_image);
-	//waitKey(0);
-	Mat tmplt_filtered_image = get_person_with_tmplt(color_filtered_image);
 
+	//imwrite("out/"+description + "_color_filtered.jpg", color_filtered_image);
+	Mat tmplt_filtered_image = get_person_with_tmplt(color_filtered_image);
+	imshow("color_filtered_image", color_filtered_image);
+	imshow("tmplt filtered image", tmplt_filtered_image);
+	waitKey(1);
 	// Get person location
 	Moments person_moments = moments(hsv2gray(tmplt_filtered_image), true);
 	fydp::MoveData result;
 	result.x = (int)(person_moments.m10 / person_moments.m00);
 	result.y = (int)(person_moments.m01 / person_moments.m00);
 	result.area = (int)person_moments.m00;
-
-	// Plot location in image
-	rectangle(tmplt_filtered_image, Point((int)(result.x-2), 
-		(int)(result.y- 2)), Point((int)(result.x + 2), (int)(result.y + 2)), 
-		Scalar(255, 255, 255), CV_FILLED);
-
-	//imwrite("output/" + descrption + "_" + to_string(area) + "_" + to_string(x) + "_" + to_string(y) + ".jpg",
-	//	tmplt_filtered_image);
-	//imwrite("out/" + description + "_tmplt_filtered.jpg", tmplt_filtered_image);
-	//waitKey(0);
-	imshow("tmplt_filtered", tmplt_filtered_image);
-	//waitKey(0);
-	destroyWindow("tmplt_filtered");
+	
 	return result;
 }
 
@@ -338,24 +324,7 @@ Mat takePicture(VideoCapture cap){
 	ROS_INFO("taking picture..");
         Mat resultImg;
 	cap.read(resultImg);
-	imshow("cam", resultImg);
-	//waitKey(1);
-	destroyWindow("cam");
 	return resultImg;
-}
-
-Mat take_picture(VideoCapture cap) {
-	Mat streamImg;
-	while (1) {
-		cap >> streamImg;
-		imshow("cam", streamImg);
-		char k = waitKey(1);
-		if (k == 'a') {
-			break;
-		}
-	}
-	destroyWindow("cam");
-	return streamImg;
 }
 
 void takePictureCallback(const std_msgs::Bool::ConstPtr& msg)
@@ -396,7 +365,6 @@ int main(int argc, char **argv) {
 	ROS_INFO("out of while loop");
 	// Take picture against green background
 	Mat original_image = takePicture(cap);
-	imwrite("original_image1.jpg", original_image);
 	original_image = sharpen_image(original_image);
 	Mat person_original = load_hsv_image(original_image);
 	
@@ -410,64 +378,47 @@ int main(int argc, char **argv) {
 			break;
 		}
 	}
-	Mat person = resize_img(filter_green_background(person_original, green_value), 200);
+	Mat person = filter_green_background(resize_img(person_original, 100), green_value);
 
 	// Getting Person Template
+	Mat person_segmented = k_means(person, 3);
+	imshow("person_segmented", person_segmented);
+	imshow("person", person);
 	person_histograms = get_hsv_histogram(person, "filtered_person_0");
-	person = k_means(person, 3);
 	person_original_h_pv = get_peak_values(person_histograms[0]);
 
 	HUE_AVG = get_hue_avg(person_original_h_pv);
-	PERSON_TMPLT = get_person_with_color(person);
+	ROS_INFO("%%%%% HUE_AVG %%%%%%%%%");
+	for(int i=0; i < (int)person_original_h_pv.size(); i++)
+	{
+		ROS_INFO("Peak Value %d: %d",i, person_original_h_pv[i]);
+	
+	}
+	ROS_INFO("Final AVG: %d",HUE_AVG);
+	PERSON_TMPLT = get_person_with_color(person_segmented);
 
 	imshow("Template", PERSON_TMPLT);
-	waitKey(1000);
+	waitKey(0);
+	destroyWindow("Template");
+	
 	ROS_INFO("Going into 2nd while loop");
 	while (!snapColor) {
 		ros::spinOnce();
-	}
-//	return 0;
-/*
-	ROS_INFO("out of 2nd while loop");
-
-        Mat color = load_hsv_image(takePicture(cap));
-        //imwrite("Person_color_hsv.jpg", color);
-        //color = imread("Person_color_hsv.jpg");
-
-        // Setting global variable describing person characteristics
-        // For Color
-        PERSON_HSV = mean(color);
-        int hue_avg = (int)ceil(PERSON_HSV.val[0]);
-        int s_avg = (int)ceil(PERSON_HSV.val[1]);
-        /*int v_avg = (int)ceil(avg_hsv.val[2]);*/
-/*
-        LOWER_BOUND = Scalar(std::max(hue_avg - 15, 0), std::min(s_avg - 40, 0), 0);
-        UPPER_BOUND = Scalar(std::min(hue_avg + 15, 255), std::max(s_avg + 40, 255), 255);
-        // For person template
-        PERSON_TMPLT = get_person_with_color(person);
-        imshow("PERSON_TMPLT", PERSON_TMPLT);
-        ROS_INFO("hue avg: %d \n", hue_avg);
-	ROS_INFO("s avg: %d \n", s_avg);
-
-	fydp::MoveData move_data;
-	move_data.x = 1;
-	move_data.y = 2;
-	move_data.area = 3;
-*/        
+	} 
 
 	Mat image, new_image; 
 	fydp::MoveData move_data;
 	//int i = 0;
 	while(!shutDown){
-		image = load_hsv_image(takePicture(cap));//imread("out/img_"+to_string(i)+".jpg"));
+		image = load_hsv_image(takePicture(cap),250);//imread("out/img_"+to_string(i)+".jpg"));
 		image = sharpen_image(image);
 		new_image = k_means(image, 3);
-		imshow("segmented_image", new_image);
-		//imwrite("out/segmented_image_"+to_string(i)+".jpg", new_image);
-		//waitKey(0);
 		move_data = find_person_in_img(new_image, "");
 		ROS_INFO("about to publish");
 		follower_pub.publish(move_data);
+		ROS_INFO("%d",move_data.x);
+		ROS_INFO("%d",move_data.y);
+		ROS_INFO("%d",move_data.area);
 		ros::spinOnce();
 	}
 
