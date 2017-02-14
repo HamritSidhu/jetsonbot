@@ -26,10 +26,10 @@ const int motor3StopPos = 93;
 const int motor2StopPos = 93;
 const int motor4StopPos = 93;
 
-const int thresX = 256;
-const int thresA = 22000;
-const int margX = 250;
-const int margA = 2000;
+const int thresX = 60;
+const int thresA = 2000;
+const int margX = 4;
+const int margA = 300;
 
 bool flag = false;
 
@@ -53,14 +53,14 @@ void followCallback(const fydp::MoveData& msg) {
   }
   else {
      if (inX < (thresX-margX))
-       turnSharpLeft(10);
+       setRightWingSpeed(8);
      else if(inX > (thresX+margX))
-       turnSharpRight(10);
+       setLeftWingSpeed(8);
      else {
        if (inArea > (thresA+margA))
-         drive(-3);
+         drive(-2);
        if (inArea < (thresA-margA))
-         drive(3);
+         drive(2);
      }
   }  
 }

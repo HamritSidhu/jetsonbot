@@ -4,7 +4,7 @@
 
 bool callFlag = false;
 
-const int queueSize = 5;
+const int queueSize = 10;
 fydp::MoveData moveDataQueue[queueSize];
 fydp::MoveData predictedData;
 
@@ -45,11 +45,31 @@ fydp::MoveData predictMoveData() {
 }
 
 void predictionProcessing(const fydp::MoveData& msg) {
-	// updating the queue
+	// shift everyting 1 to the left
 	for (int i = 0; i < queueSize - 1; i++) {
 		moveDataQueue[i] = moveDataQueue[i+1];
 	}
-	moveDataQueue[queueSize - 1] = msg;
+	
+	// find moving average
+	int sum_x = 0;
+	int sum_area = 0;
+	for (int i = 0; i < queueSize - 2; i++) {
+		sum_x += moveDataQueue[i].x;
+		sum_area += moveDataQueue[i].area;
+	}
+	sum_x += msg.x;
+	sum_area += msg.area;
+	
+	fydp::MoveData res;
+	res.x = sum_x/queueSize;
+	res.area = sum_area/queueSize;
+	
+    ROS_INFO("%%%%%%%% Averaged Data %%%%%%%%");
+    ROS_INFO("%d", res.x);
+	ROS_INFO("%d", res.y);
+	ROS_INFO("%d", res.area);
+	
+	moveDataQueue[queueSize - 1] = res;
 	callFlag = true;
 }
 
