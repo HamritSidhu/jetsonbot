@@ -16,7 +16,7 @@ using namespace std;
 Scalar PERSON_HSV;
 Mat PERSON_TMPLT;
 Scalar LOWER_BOUND, UPPER_BOUND;
-int HUE_AVG;
+int HUE_AVG, S_AVG;
 
 bool snapPerson = 0;
 bool snapColor = 0;
@@ -46,28 +46,36 @@ vector<int> get_non_zero_bins(Mat hist) {
 	return peak_values;
 }
 
-vector<int> get_peak_values(Mat hist) {
+vector<int> get_peak_values(Mat hist, bool is_wrap = true) {
 	vector<int> peak_values;
 	vector<std::pair<int, int>> peak_values_dict;
 	int window[9] = {};
 	for (int h = 1; h < hist.rows; h++)
 	{
-		if (h < 4){
-			peak_values_dict.push_back(make_pair(h, hist.at<float>(h)));
-		}
-		else{
-			for (int i = 4; i >= 0; i--) {
-				// Filling sliding window
-				window[i] = hist.at<float>(h + i - 4);
-				if (i != 4) {
-					window[8 - i] = hist.at<float>(h - i + 4);
-					if (window[4] < window[i] || window[4] < window[8 - i]) {
-						break;
-					}
+		for (int i = 4; i >= 0; i--) {
+			// Filling sliding window
+			int index = h + i - 4;
+			if (index <= 0) {
+				if (is_wrap) {
+					index += 179;
 				}
-				if (i == 0 && hist.at<float>(h) > 0) {
-					peak_values_dict.push_back(make_pair(h, hist.at<float>(h)));
+				else {
+					index = 1;
 				}
+			}
+			window[i] = hist.at<float>(index);
+			if (i != 4) {
+				index = h - i + 4; 
+				if (index > 179 && is_wrap) {
+					index -= 179;
+				}
+				window[8 - i] = hist.at<float>(index);
+				if (window[4] < window[i] || window[4] < window[8 - i]) {
+					break;
+				}
+			}
+			if (i == 0 && hist.at<float>(h) > 0) {
+				peak_values_dict.push_back(make_pair(h, hist.at<float>(h)));
 			}
 		}
 	}
@@ -165,8 +173,24 @@ Mat filter_green_background(Mat image_hsv, int green_value) {
 	return result;
 }
 
+Mat mask_for_red_color(Mat img) {
+	Scalar lower_bound = Scalar(165, max(S_AVG - 85, 0), 0);
+	Scalar upper_bound = Scalar(179, min(S_AVG + 85, 255), 255);
+
+	Mat filtered_image, mask, mask_1, mask_2;
+
+	inRange(img, lower_bound, upper_bound, mask_1);
+
+	lower_bound = Scalar(1, max(S_AVG - 85, 0), 0);
+	upper_bound = Scalar(15, min(S_AVG + 85, 255), 255);
+	inRange(img, lower_bound, upper_bound, mask_2);
+
+	bitwise_or(mask_1, mask_2, mask);
+	return mask;
+}
+
 Mat get_person_with_color(Mat img) {
-	vector<Mat> segmented_hists = get_hsv_histogram(img, "img");
+	/*vector<Mat> segmented_hists = get_hsv_histogram(img, "img");
 	std::vector<int> segmented_value = get_non_zero_bins(segmented_hists[0]);
 
 	int diff = 180;
@@ -181,12 +205,17 @@ Mat get_person_with_color(Mat img) {
 	}
 	ROS_INFO("%%%%%% Segmented Hue Avg:%%%%%%%%%%%%%");
 	ROS_INFO("%d", hue_avg);
-	
-	Scalar lower_bound = Scalar(std::max(hue_avg - 3, 0), 0, 0);
-	Scalar upper_bound = Scalar(std::min(hue_avg + 3, 180), 255, 255);
-
+	*/
 	Mat filtered_image, mask;
-	inRange(img, lower_bound, upper_bound, mask);
+	if (HUE_AVG < 5 || HUE_AVG > 172 ){
+		mask = mask_for_red_color(img);
+	}
+	else {
+		Scalar lower_bound = Scalar(max(HUE_AVG - 13, 0), max(S_AVG - 85, 0), 0);
+		Scalar upper_bound = Scalar(min(HUE_AVG + 13, 179), min(S_AVG + 85, 255), 255);
+
+		inRange(img, lower_bound, upper_bound, mask);
+	}
 
 	//morphological opening (remove small objects from the foreground)
 	erode(mask, mask, getStructuringElement(MORPH_ELLIPSE, Size(3, 3)));
@@ -385,9 +414,12 @@ int main(int argc, char **argv) {
 	imshow("person_segmented", person_segmented);
 	imshow("person", person);
 	person_histograms = get_hsv_histogram(person, "filtered_person_0");
+	
 	person_original_h_pv = get_peak_values(person_histograms[0]);
+	vector<int> person_original_s_pv = get_peak_values(person_histograms[1], false);
 
 	HUE_AVG = get_hue_avg(person_original_h_pv);
+	S_AVG = get_hue_avg(person_original_s_pv);
 	ROS_INFO("%%%%% HUE_AVG %%%%%%%%%");
 	for(int i=0; i < (int)person_original_h_pv.size(); i++)
 	{
@@ -413,7 +445,7 @@ int main(int argc, char **argv) {
 		image = load_hsv_image(takePicture(cap),250);//imread("out/img_"+to_string(i)+".jpg"));
 		image = sharpen_image(image);
 		new_image = k_means(image, 3);
-		move_data = find_person_in_img(new_image, "");
+		move_data = find_person_in_img(image, "");
 		ROS_INFO("about to publish");
 		follower_pub.publish(move_data);
 		ROS_INFO("%d",move_data.x);
