@@ -10,9 +10,9 @@ fydp::MoveData predictedData;
 
 void initMoveDataQueue() {
 	fydp::MoveData centroid;
-	centroid.x = 125;
+	centroid.x = 250;
 	centroid.y = 0;
-	centroid.area = 6250;
+	centroid.area = 13000;
 
 	for (int i = 0; i < queueSize; i++)
 		moveDataQueue[i] = centroid;
@@ -53,7 +53,7 @@ void predictionProcessing(const fydp::MoveData& msg) {
 	// find moving average
 	int sum_x = 0;
 	int sum_area = 0;
-	for (int i = 0; i < queueSize - 2; i++) {
+	for (int i = 0; i < queueSize - 1; i++) {
 		sum_x += moveDataQueue[i].x;
 		sum_area += moveDataQueue[i].area;
 	}

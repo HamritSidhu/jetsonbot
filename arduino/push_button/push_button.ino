@@ -26,10 +26,10 @@ const int motor3StopPos = 93;
 const int motor2StopPos = 93;
 const int motor4StopPos = 93;
 
-const int thresX = 60;
-const int thresA = 2000;
-const int margX = 4;
-const int margA = 300;
+const int thresX = 250;
+const int thresA = 13000;
+const int margX = 20;
+const int margA = 1250;
 
 bool flag = false;
 
@@ -48,21 +48,54 @@ void followCallback(const fydp::MoveData& msg) {
   String sArea = String(inArea);
   nh.loginfo(sArea.c_str());
   
-  if (inArea <= (thresA+margA) && inArea >= (thresA-margA)) {
-      stop();
+  if (inArea > (thresA+margA)) {
+    drive(-2);
+    nh.loginfo("driving backward");
+    if (inX > (thresX+margX)) {
+      setRightWingSpeed(-8);
+      nh.loginfo("turning right");
+    }
+    else if (inX < (thresX-margX)) {
+      setLeftWingSpeed(-8);
+      nh.loginfo("turning left");
+    }
+  }
+  else if (inArea < (thresA-margA)) {
+    drive(2);
+    nh.loginfo("driving forward");
+    if (inX > (thresX+margX)) {
+      setLeftWingSpeed(8);
+      nh.loginfo("turning right");
+    }
+    else if (inX < (thresX-margX)) {
+      setRightWingSpeed(8);
+      nh.loginfo("turning left");
+    }
   }
   else {
-     if (inX < (thresX-margX))
-       setRightWingSpeed(8);
-     else if(inX > (thresX+margX))
-       setLeftWingSpeed(8);
-     else {
-       if (inArea > (thresA+margA))
-         drive(-2);
-       if (inArea < (thresA-margA))
-         drive(2);
-     }
-  }  
+    stop();
+  }
+  
+  
+//  if (inArea <= (thresA+margA) && inArea >= (thresA-margA)) {
+//      stop();
+//  }
+//  else {
+//     if (inX < (thresX-margX))
+//       setRightWingSpeed(8);
+//     else if(inX > (thresX+margX))
+//       setLeftWingSpeed(8);
+//     else {
+//       if (inArea > (thresA+margA)) {
+//         drive(-2);
+//         nh.loginfo("driving backward");
+//       }
+//       else { 
+//         drive(2);
+//         nh.loginfo("driving forward");
+//       }
+//     }
+//  }  
 }
 
 std_msgs::Bool pushed_msg;

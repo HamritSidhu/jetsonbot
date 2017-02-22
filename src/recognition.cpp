@@ -164,25 +164,27 @@ std::vector<Mat> get_hsv_histogram(Mat image, String desc, bool is_save=false) {
 	return histograms;
 }
 
-Mat filter_green_background(Mat image_hsv, int green_value) {
-	Mat mask, result;
-	inRange(image_hsv, Scalar(green_value - 7, 0, 0), Scalar(green_value + 7, 255, 255), mask);
-	mask = 255 - mask;
-	bitwise_and(image_hsv, image_hsv, result, mask = mask);
+Mat filter_green_background(Mat background_hsv, Mat person_hsv) {
+	Mat diff, person_mask, person;
+	absdiff(background_hsv, person_hsv, diff);
+	vector<Mat> diff_channels;
+	split(diff, diff_channels);
+	threshold(diff_channels[0], person_mask, 15, 255, THRESH_BINARY);
+	bitwise_and(person_hsv, person_hsv, person, person_mask);
 
-	return result;
+	return person;
 }
 
 Mat mask_for_red_color(Mat img) {
-	Scalar lower_bound = Scalar(165, max(S_AVG - 85, 0), 0);
-	Scalar upper_bound = Scalar(179, min(S_AVG + 85, 255), 255);
+	Scalar lower_bound = Scalar(165, 0, 0);
+	Scalar upper_bound = Scalar(179, 255, 255);
 
 	Mat filtered_image, mask, mask_1, mask_2;
 
 	inRange(img, lower_bound, upper_bound, mask_1);
 
-	lower_bound = Scalar(1, max(S_AVG - 85, 0), 0);
-	upper_bound = Scalar(15, min(S_AVG + 85, 255), 255);
+	lower_bound = Scalar(1, 0, 0);
+	upper_bound = Scalar(15, 255, 255);
 	inRange(img, lower_bound, upper_bound, mask_2);
 
 	bitwise_or(mask_1, mask_2, mask);
@@ -207,12 +209,12 @@ Mat get_person_with_color(Mat img) {
 	ROS_INFO("%d", hue_avg);
 	*/
 	Mat filtered_image, mask;
-	if (HUE_AVG < 5 || HUE_AVG > 172 ){
+	if (HUE_AVG < 5 || HUE_AVG > 169){
 		mask = mask_for_red_color(img);
 	}
 	else {
-		Scalar lower_bound = Scalar(max(HUE_AVG - 13, 0), max(S_AVG - 85, 0), 0);
-		Scalar upper_bound = Scalar(min(HUE_AVG + 13, 179), min(S_AVG + 85, 255), 255);
+		Scalar lower_bound = Scalar(max(HUE_AVG - 13, 0), 0, 0);
+		Scalar upper_bound = Scalar(min(HUE_AVG + 13, 179), 255, 255);
 
 		inRange(img, lower_bound, upper_bound, mask);
 	}
@@ -363,9 +365,6 @@ void takePictureCallback(const std_msgs::Bool::ConstPtr& msg)
 		if (!snapPerson) {
 			snapPerson = 1;
 		}
-		else if (!snapColor) {
-			snapColor = 1;
-		}
 		else {
 			shutDown = 1;
 		}
@@ -379,43 +378,47 @@ int main(int argc, char **argv) {
 	ros::Subscriber sub = n.subscribe("pushed", 1000, takePictureCallback);
 	ros::Publisher follower_pub = n.advertise<fydp::MoveData>("camera", 1000);
 
-	ROS_INFO("before spin..");
-	ROS_INFO("Going into first while loop");
+	while(1){
 	Mat stream;
-
+	//cap.set(CV_CAP_PROP_FRAME_WIDTH, 250);
+	//cap.set(CV_CAP_PROP_FRAME_HEIGHT, 350);
 	/* Part 1 */
-	
+	ROS_INFO("TAKING background picture, press a");	
+	while (1) {
+		cap.read(stream);
+		imshow("taking_background", stream);
+		char k = waitKey(1);
+		if(k == 'a'){
+		   break;
+		}
+	}
+	destroyAllWindows();
+	Mat background = takePicture(cap);
+	Mat background_hsv = load_hsv_image(background);
+
+	ROS_INFO("Taking person picture, press a");
 	while (!snapPerson) {
 		cap.read(stream);
-		imshow("cam", stream);
-		waitKey(1);
-		ros::spinOnce();
+		imshow("taking_person", stream);
+		char k = waitKey(1);
+		if(k == 'a'){
+		   break;
+		}
 	}
-	ROS_INFO("out of while loop");
+	destroyAllWindows();
+	ROS_INFO("Take picture of person agains green background");
 	// Take picture against green background
 	Mat original_image = takePicture(cap);
 	original_image = sharpen_image(original_image);
-	Mat person_original = load_hsv_image(original_image);
+	Mat person_hsv = load_hsv_image(original_image);
 	
 	// Filter Green Background
-	vector<Mat> person_histograms = get_hsv_histogram(person_original, "img_3125");
-	std::vector<int> person_original_h_pv = get_peak_values(person_histograms[0]);
-	int green_value = 70;
-	for (int i = 0; i < person_original_h_pv.size(); i++) {
-		if (person_original_h_pv[i] > 45 && person_original_h_pv[i] < 85) {
-			green_value = person_original_h_pv[i];
-			break;
-		}
-	}
-	Mat person = filter_green_background(resize_img(person_original, 100), green_value);
+	Mat person = filter_green_background(background_hsv, person_hsv);
 
 	// Getting Person Template
-	Mat person_segmented = k_means(person, 3);
-	imshow("person_segmented", person_segmented);
-	imshow("person", person);
-	person_histograms = get_hsv_histogram(person, "filtered_person_0");
+	vector<Mat> person_histograms = get_hsv_histogram(person, "filtered_person_0");
 	
-	person_original_h_pv = get_peak_values(person_histograms[0]);
+	vector<int> person_original_h_pv = get_peak_values(person_histograms[0]);
 	vector<int> person_original_s_pv = get_peak_values(person_histograms[1], false);
 
 	HUE_AVG = get_hue_avg(person_original_h_pv);
@@ -427,14 +430,36 @@ int main(int argc, char **argv) {
 	
 	}
 	ROS_INFO("Final AVG: %d",HUE_AVG);
-	PERSON_TMPLT = get_person_with_color(person_segmented);
+
+	// Resize and Cropped Person Template
+	Mat filtered_person = get_person_with_color(person); // Size 640 x 480
+
+	// Setting Region of Interest - Adjust value if person is not located at this region
+	Rect roi;
+	int crop_x = 125;
+	int crop_y_bottom = 60;
+	roi.x = crop_x;
+	roi.y = 0;
+	roi.width = filtered_person.size().width - (crop_x*2);
+	roi.height = filtered_person.size().height - crop_y_bottom; // Size 390 x 440
+	PERSON_TMPLT = resize_img(filtered_person(roi), 250); // Size 250 x 315
 
 	imshow("Template", PERSON_TMPLT);
-	waitKey(0);
+	ROS_INFO("Accept Template? y or n or q(quit)?");
+	char r = waitKey(0);
 	destroyWindow("Template");
 	
-	ROS_INFO("Going into 2nd while loop");
-	while (!snapColor) {
+	if(r == 'y'){
+	   break;
+	}
+	else if(r == 'q'){
+	   return 0;
+	}
+
+	}
+
+	ROS_INFO("Going into 2nd while loop, press button");
+	while (!snapPerson) {
 		ros::spinOnce();
 	} 
 
@@ -442,9 +467,9 @@ int main(int argc, char **argv) {
 	fydp::MoveData move_data;
 	//int i = 0;
 	while(!shutDown){
-		image = load_hsv_image(takePicture(cap),250);//imread("out/img_"+to_string(i)+".jpg"));
+		image = load_hsv_image(takePicture(cap));//imread("out/img_"+to_string(i)+".jpg"));
 		image = sharpen_image(image);
-		new_image = k_means(image, 3);
+		//new_image = k_means(image, 3);
 		move_data = find_person_in_img(image, "");
 		ROS_INFO("about to publish");
 		follower_pub.publish(move_data);
