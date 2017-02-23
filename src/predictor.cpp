@@ -24,8 +24,8 @@ fydp::MoveData predictMoveData() {
         int firstOrderDifferenceSumArea = 0;
 
         for (int i = 0; i < queueSize - 1; i++) {
-             	firstOrderDifferenceSumX = moveDataQueue[i+1].x - moveDataQueue[i].x;
-               	firstOrderDifferenceSumArea = moveDataQueue[i+1].area - moveDataQueue[i].area;
+             	firstOrderDifferenceSumX += (moveDataQueue[i+1].x - moveDataQueue[i].x);
+               	firstOrderDifferenceSumArea += (moveDataQueue[i+1].area - moveDataQueue[i].area);
         	counter++;
         }
 
