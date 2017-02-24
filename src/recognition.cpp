@@ -269,6 +269,16 @@ Mat hsv2gray(Mat img) {
 	return result;
 }
 
+fydp::MoveData init_data(Mat init_template) {
+	Moments person_moments = moments(hsv2gray(init_template), true);
+	fydp::MoveData result;
+	result.x = (int)(person_moments.m10 / person_moments.m00);
+	result.y = (int)(person_moments.m01 / person_moments.m00);
+	result.area = (long)person_moments.m00;
+	
+	return result;
+}
+
 fydp::MoveData find_person_in_img(Mat input_image, String description = "test") {
 	// Apply filtering
 	Mat color_filtered_image = get_person_with_color(input_image);
@@ -283,7 +293,7 @@ fydp::MoveData find_person_in_img(Mat input_image, String description = "test") 
 	fydp::MoveData result;
 	result.x = (int)(person_moments.m10 / person_moments.m00);
 	result.y = (int)(person_moments.m01 / person_moments.m00);
-	result.area = (int)person_moments.m00;
+	result.area = (long)person_moments.m00;
 	
 	return result;
 }
@@ -375,9 +385,11 @@ int main(int argc, char **argv) {
    	VideoCapture cap(0);
 	ros::init(argc, argv, "listener");
 	ros::NodeHandle n;
+	ros::Publisher init_pub = n.advertise<fydp::MoveData>("init",1000);
 	ros::Subscriber sub = n.subscribe("pushed", 1000, takePictureCallback);
 	ros::Publisher follower_pub = n.advertise<fydp::MoveData>("camera", 1000);
-
+	Mat filtered_person;
+	
 	while(1){
 	Mat stream;
 	//cap.set(CV_CAP_PROP_FRAME_WIDTH, 250);
@@ -432,7 +444,7 @@ int main(int argc, char **argv) {
 	ROS_INFO("Final AVG: %d",HUE_AVG);
 
 	// Resize and Cropped Person Template
-	Mat filtered_person = get_person_with_color(person); // Size 640 x 480
+	filtered_person = get_person_with_color(person); // Size 640 x 480
 
 	// Setting Region of Interest - Adjust value if person is not located at this region
 	Rect roi;
@@ -458,6 +470,24 @@ int main(int argc, char **argv) {
 
 	}
 
+	//Sending init data to all nodes
+	ROS_INFO("Getting Initialization MoveData");
+	Mat initImage;
+	fydp::MoveData initValues;
+	long sumArea = 0;
+	
+	for (int i=0; i<5; i++) {
+		initImage =  load_hsv_image(takePicture(cap));
+		initImage = sharpen_image(initImage);
+		initValues = find_person_in_img(initImage, "");
+		sumArea += initValues.area; 
+	} 
+	
+	initValues.area = sumArea/5;
+	ROS_INFO("Initial Area: %d",initValues.area);
+	init_pub.publish(initValues);
+	ros::spinOnce();
+	
 	ROS_INFO("Going into 2nd while loop, press button");
 	while (!snapPerson) {
 		ros::spinOnce();

@@ -107,7 +107,7 @@ generate_messages(
 catkin_package(
   #INCLUDE_DIRS include
   #LIBRARIES fydp
-  #CATKIN_DEPENDS cv_bridge roscpp rospy sensor_msgs std_msgs
+  CATKIN_DEPENDS message_runtime
   #DEPENDS system_lib
 )
 

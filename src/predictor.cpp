@@ -4,15 +4,16 @@
 
 bool callFlag = false;
 
-const int queueSize = 10;
+const int queueSize = 4;
 fydp::MoveData moveDataQueue[queueSize];
 fydp::MoveData predictedData;
 
-void initMoveDataQueue() {
+void initMoveDataQueue(const fydp::MoveData& msg) {
 	fydp::MoveData centroid;
 	centroid.x = 250;
 	centroid.y = 0;
-	centroid.area = 13000;
+	centroid.area = msg.area;
+	ROS_INFO("Initial Area: %d", centroid.area);
 
 	for (int i = 0; i < queueSize; i++)
 		moveDataQueue[i] = centroid;
@@ -21,7 +22,7 @@ void initMoveDataQueue() {
 fydp::MoveData predictMoveData() {
         int counter = 0;
         int firstOrderDifferenceSumX = 0;
-        int firstOrderDifferenceSumArea = 0;
+        long firstOrderDifferenceSumArea = 0;
 
         for (int i = 0; i < queueSize - 1; i++) {
              	firstOrderDifferenceSumX += (moveDataQueue[i+1].x - moveDataQueue[i].x);
@@ -31,16 +32,12 @@ fydp::MoveData predictMoveData() {
 
         // integer division here
         int firstOrderDifferenceAverageX = firstOrderDifferenceSumX / counter;
-        int firstOrderDifferenceAverageArea = firstOrderDifferenceSumArea / counter;
+        long firstOrderDifferenceAverageArea = firstOrderDifferenceSumArea / counter;
 
         predictedData.x = moveDataQueue[queueSize - 1].x + firstOrderDifferenceAverageX;
         predictedData.area = moveDataQueue[queueSize -1].area + firstOrderDifferenceAverageArea;
 
         fydp::MoveData result = predictedData;
-        ROS_INFO("%%%%%%%% Predicted Data %%%%%%%%");
-        ROS_INFO("%d", result.x);
-		ROS_INFO("%d", result.y);
-		ROS_INFO("%d", result.area);
         return result;
 }
 
@@ -52,7 +49,7 @@ void predictionProcessing(const fydp::MoveData& msg) {
 	
 	// find moving average
 	int sum_x = 0;
-	int sum_area = 0;
+	long sum_area = 0;
 	for (int i = 0; i < queueSize - 1; i++) {
 		sum_x += moveDataQueue[i].x;
 		sum_area += moveDataQueue[i].area;
@@ -74,16 +71,24 @@ void predictionProcessing(const fydp::MoveData& msg) {
 }
 
 int main(int argc, char **argv) {
-	initMoveDataQueue();
+	//initMoveDataQueue();
 	ros::init(argc, argv, "predictor");
 	ros::NodeHandle nodeHanle;
+	ros::Subscriber in = nodeHanle.subscribe("init", 1000, initMoveDataQueue);
 	ros::Publisher pub = nodeHanle.advertise<fydp::MoveData>("follower", 1000);
 	ros::Subscriber sub = nodeHanle.subscribe("camera", 1000, predictionProcessing);
+	
+	
 	while(1) {
 		while(!callFlag) {
 			ros::spinOnce();
 		}
-		pub.publish(predictMoveData());
+		fydp::MoveData result = predictMoveData();
+		ROS_INFO("%%%%%%%% Predicted Data %%%%%%%%");
+        ROS_INFO("%d", result.x);
+		ROS_INFO("%d", result.y);
+		ROS_INFO("%d", result.area);
+		pub.publish(result);
 		callFlag = false;
 	}
 }
