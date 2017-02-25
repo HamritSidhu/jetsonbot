@@ -382,7 +382,7 @@ void takePictureCallback(const std_msgs::Bool::ConstPtr& msg)
 }
 
 int main(int argc, char **argv) {
-   	VideoCapture cap(0);
+   	VideoCapture cap(-1);
 	ros::init(argc, argv, "listener");
 	ros::NodeHandle n;
 	ros::Publisher init_pub = n.advertise<fydp::MoveData>("init",1000);
@@ -396,7 +396,7 @@ int main(int argc, char **argv) {
 	//cap.set(CV_CAP_PROP_FRAME_HEIGHT, 350);
 	/* Part 1 */
 	ROS_INFO("TAKING background picture, press a");	
-	while (1) {
+	while (0) {
 		cap.read(stream);
 		imshow("taking_background", stream);
 		char k = waitKey(1);
@@ -405,11 +405,13 @@ int main(int argc, char **argv) {
 		}
 	}
 	destroyAllWindows();
-	Mat background = takePicture(cap);
+	Mat background = imread("backgourd.jpg");//takePicture(cap);
+	imshow("", background);
+	waitKey(0);
 	Mat background_hsv = load_hsv_image(background);
 
 	ROS_INFO("Taking person picture, press a");
-	while (!snapPerson) {
+	while (0) {
 		cap.read(stream);
 		imshow("taking_person", stream);
 		char k = waitKey(1);
@@ -420,7 +422,7 @@ int main(int argc, char **argv) {
 	destroyAllWindows();
 	ROS_INFO("Take picture of person agains green background");
 	// Take picture against green background
-	Mat original_image = takePicture(cap);
+	Mat original_image = imread("original_image.jpg"); //takePicture(cap);
 	original_image = sharpen_image(original_image);
 	Mat person_hsv = load_hsv_image(original_image);
 	
@@ -462,6 +464,7 @@ int main(int argc, char **argv) {
 	destroyWindow("Template");
 	
 	if(r == 'y'){
+	   //imwrite("PERSON_TMPLT.jpg", PERSON_TMPLT);
 	   break;
 	}
 	else if(r == 'q'){
@@ -472,9 +475,9 @@ int main(int argc, char **argv) {
 
 	//Sending init data to all nodes
 	ROS_INFO("Getting Initialization MoveData");
-	Mat initImage;
+	//Mat initImage;
 	fydp::MoveData initValues;
-	long sumArea = 0;
+	/*long sumArea = 0;
 	
 	for (int i=0; i<5; i++) {
 		initImage =  load_hsv_image(takePicture(cap));
@@ -482,8 +485,9 @@ int main(int argc, char **argv) {
 		initValues = find_person_in_img(initImage, "");
 		sumArea += initValues.area; 
 	} 
-	
-	initValues.area = sumArea/5;
+	*/
+	//initValues.area = sumArea/5;
+	initValues.area = 45000;
 	ROS_INFO("Initial Area: %d",initValues.area);
 	init_pub.publish(initValues);
 	ros::spinOnce();

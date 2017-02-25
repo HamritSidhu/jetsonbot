@@ -33,6 +33,8 @@ int margX = 20;
 long thresA = 0;
 long margA = 0;
 
+int sharpX = 90;
+
 bool flag = false;
 
 ros::NodeHandle nh;
@@ -65,19 +67,47 @@ void followCallback(const fydp::MoveData& msg) {
   nh.loginfo(sArea.c_str());
   
   // operation range: follow within 70% of the area
-  if (inArea <= thresA && inArea >= thresA*0.4) {
+  if (inArea <= thresA && inArea >= thresA*0.3) {
     if (inX > (thresX+margX)) {
-      setLeftWingSpeed(8);
-      setRightWingSpeed(-8);
-      nh.loginfo("turning right");
+      if (inX > thresX+sharpX) {
+        turnSharpRight(10);
+        nh.loginfo("turning sharp right");
+      }
+      else {
+         setLeftWingSpeed(12);
+         setRightWingSpeed(3);
+         nh.loginfo("turning right");
+      }
+     
+      
+//      motor1.write(motor1StopPos);
+//      motor2.write(motor2StopPos);
+//      //moving back motors only
+//      motor3.write(motor3StopPos + 15);
+//      motor4.write(motor4StopPos - 5);
+      
+      
     }
     else if (inX < (thresX-margX)) {
-      setRightWingSpeed(8);
-      setLeftWingSpeed(-8);
-      nh.loginfo("turning left");
+      if (inX < thresX-sharpX) {
+        turnSharpLeft(10);
+         nh.loginfo("turning sharp left");
+      }
+      else {
+        setRightWingSpeed(12);
+        setLeftWingSpeed(3);
+         nh.loginfo("turning left");
+      }
+      
+//      motor1.write(motor1StopPos);
+//      motor2.write(motor2StopPos);
+//      //moving back motors only
+//      motor3.write(motor3StopPos + 5);
+//      motor4.write(motor4StopPos - 15);
+     
     }
     else {
-      setSpeed(5);
+      setSpeed(6);
       nh.loginfo("driving forward");
     }
   }
@@ -147,6 +177,7 @@ void setSpeed(int speed) {
   setRightWingSpeed(speed);
 }
 
+
 void setLeftWingSpeed(int speed) {
   motor1.write(motor1StopPos + speed);
   motor3.write(motor3StopPos + speed);
@@ -160,11 +191,15 @@ void setRightWingSpeed(int speed) {
 void turnSharpLeft(int speed) {
   setLeftWingSpeed(-speed);
   setRightWingSpeed(speed);
+  delay(50);
+  stop();
 }
 
 void turnSharpRight(int speed) {
   setLeftWingSpeed(speed);
   setRightWingSpeed(-speed);
+  delay(50);
+  stop();
 }
 
 void setup()
