@@ -396,7 +396,7 @@ int main(int argc, char **argv) {
 	//cap.set(CV_CAP_PROP_FRAME_HEIGHT, 350);
 	/* Part 1 */
 	ROS_INFO("TAKING background picture, press a");	
-	while (0) {
+	while (1) {
 		cap.read(stream);
 		imshow("taking_background", stream);
 		char k = waitKey(1);
@@ -405,13 +405,13 @@ int main(int argc, char **argv) {
 		}
 	}
 	destroyAllWindows();
-	//Mat background = takePicture(cap);
-	//imwrite("background_2.jpg", background);
-	Mat background = imread("background_2.jpg");
+	Mat background = takePicture(cap);
+	imwrite("background_david.jpg", background);
+	//Mat background = imread("background_2.jpg");
 	Mat background_hsv = load_hsv_image(background);
 
 	ROS_INFO("Taking person picture, press a");
-	while (0) {
+	while (1) {
 		cap.read(stream);
 		imshow("taking_person", stream);
 		char k = waitKey(1);
@@ -422,9 +422,9 @@ int main(int argc, char **argv) {
 	destroyAllWindows();
 	ROS_INFO("Take picture of person agains green background");
 	// Take picture against green background
-	//Mat original_image = takePicture(cap);
-	//imwrite("original_image_2.jpg", original_image);
-	Mat original_image = imread("original_image_2.jpg"); //takePicture(cap);
+	Mat original_image = takePicture(cap);
+	imwrite("original_image_david.jpg", original_image);
+	//Mat original_image = imread("original_image_2.jpg"); //takePicture(cap);
 	original_image = sharpen_image(original_image);
 	Mat person_hsv = load_hsv_image(original_image);
 	
@@ -479,18 +479,22 @@ int main(int argc, char **argv) {
 	ROS_INFO("Getting Initialization MoveData");
 	Mat initImage;
 	fydp::MoveData initValues;
-	//long sumArea = 0;
+	long sumArea = 0;
+	long sumY = 0;
 	
-	//for (int i=0; i<5; i++) {
-		//initImage =  load_hsv_image(takePicture(cap));
-		//initImage = sharpen_image(initImage);
-		//initValues = find_person_in_img(initImage, "");
-		//sumArea += initValues.area; 
-	//} 
+	for (int i=0; i<5; i++) {
+		initImage =  load_hsv_image(takePicture(cap));
+		initImage = sharpen_image(initImage);
+		initValues = find_person_in_img(initImage, "");
+		sumArea += initValues.area;
+		sumY += initValues.y; 
+	} 
 	
-	//initValues.area = sumArea/5;
-	initValues.area = 45000;
+	initValues.area = sumArea/5;
+	initValues.y = sumY/5;
+	//initValues.area = 45000;
 	ROS_INFO("Initial Area: %d",initValues.area);
+	ROS_INFO("Initial Y: %d", initValues.y);
 	init_pub.publish(initValues);
 	ros::spinOnce();
 	

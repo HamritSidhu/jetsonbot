@@ -28,6 +28,7 @@ const int motor2StopPos = 93;
 const int motor4StopPos = 93;
 
 int thresX = 250;
+int thresY = 0;
 int margX = 20;
 long thresA = 0;
 long margA = 0;
@@ -42,6 +43,7 @@ ros::NodeHandle nh;
 void initCallback(const fydp::MoveData& msg) {
    thresA = msg.area;
    margA = thresA/15;
+   thresY = msg.y;
    
    nh.loginfo("Initial Area:");
    String a = String(thresA);
@@ -50,6 +52,10 @@ void initCallback(const fydp::MoveData& msg) {
    nh.loginfo("Area Margin:");
    String b = String(margA);
    nh.loginfo(b.c_str());
+   
+   nh.loginfo("Y-THRESHOLD:");
+   String c = String(thresY);
+   nh.loginfo(c.c_str());
 }
 
 
@@ -67,7 +73,7 @@ void followCallback(const fydp::MoveData& msg) {
   nh.loginfo(sArea.c_str());
   
   // operation range: follow within 70% of the area
-  if (inArea <= thresA && inArea >= 5000 && inY>140) {
+  if (inArea <= thresA-margA && inY>thresY+5 &&  inArea >= 5000) {
     if (inX > (thresX+margX)) {
       if (inX > thresX+sharpX) {
         int sharpXDiff = inX-thresX-sharpX;
@@ -122,7 +128,8 @@ void followCallback(const fydp::MoveData& msg) {
   // otherwise, stop
   else {
     nh.loginfo("STOP");
-    stop();
+    setSpeed(-2);
+    //stop();
   }
   
 }
