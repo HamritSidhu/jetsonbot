@@ -12,6 +12,7 @@ Servo motor3;
 Servo motor4;
 Servo lock;
 
+//Pin initialization
 const int motor1Pin = 3;
 const int motor2Pin = 4;
 const int motor3Pin = 5;
@@ -27,23 +28,32 @@ const int motor3StopPos = 93;
 const int motor2StopPos = 93;
 const int motor4StopPos = 93;
 
+// Centroid thresholds
 int thresX = 250;
 int thresY = 0;
-int margX = 20;
 long thresA = 0;
-long margA = 0;
 
+// Previous values
+int prevY = 0;
+
+// margins
+int margX = 20;
+long margA = 0;
 int sharpX = 120;
+
 
 bool flag = false;
 bool locked = false;
 
+// Declaration of ROS node handle
 ros::NodeHandle nh;
 
+// Initialize required thresholds based on initial centroid data
 void initCallback(const fydp::MoveData& msg) {
    thresA = msg.area;
    margA = thresA/15;
    thresY = msg.y;
+   prevY = thresY;
    
    nh.loginfo("Initial Area:");
    String a = String(thresA);
@@ -72,9 +82,48 @@ void followCallback(const fydp::MoveData& msg) {
   String sArea = String(inArea);
   nh.loginfo(sArea.c_str());
   
-  // operation range: follow within 70% of the area
+  // operation range: follow if the person gets further from initial position
+  // TODO: might have to make it more difficult to get into this loop (i.e., thresY+larger number)
   if (inArea <= thresA-margA && inY>thresY+5 &&  inArea >= 5000) {
-    if (inX > (thresX+margX)) {
+    	follow(inX, inY, inArea);
+  }
+  // otherwise, stop
+  else {
+    nh.loginfo("STOP");
+    setSpeed(-2);
+    //stop();
+  }
+
+  prevY = inY;
+  
+}
+
+
+void follow(int inX, int inY, unsigned long inArea) {
+	//Right turn
+	if (inX > (thresX+margX)) {
+		turnRight(inX, inY, inArea);  
+    }
+    //Left turn
+    else if (inX < (thresX-margX)) {
+      	turnLeft(inX, inY, inArea); 
+    }
+    //Move forward
+    else {
+    	// check for change in y there. that is, if the change in y is small, don't move otherwise move (this accounts for if person is standing in one spot and moves around)	
+    	if (abs(inY - prevY) > 5) {
+    		driveForward(inX, inY, inArea); 
+    	}
+    	// otherwise stop
+    	else {
+    		setSpeed(-2);
+    	}
+    }
+
+}
+
+void turnRight(int inX, int inY, unsigned long inArea) {
+	//Sharp Turning
       if (inX > thresX+sharpX) {
         int sharpXDiff = inX-thresX-sharpX;
         if (sharpXDiff > 30)
@@ -83,7 +132,9 @@ void followCallback(const fydp::MoveData& msg) {
           turnSharpRight(10);
         nh.loginfo("turning sharp right");
       }
+      //Smooth Turning
       else {
+      	 //scale to take distance into account as well. i.e., when turning, we want to move it at same prev speed
          int scaledSpeed = (int)(1.0*(inX-thresX-margX)/20 + 10);
          setLeftWingSpeed(scaledSpeed);
          setRightWingSpeed(3);
@@ -92,9 +143,10 @@ void followCallback(const fydp::MoveData& msg) {
          nh.loginfo("*****SPEED*****");
          nh.loginfo(ss.c_str());
       }
-      
-    }
-    else if (inX < (thresX-margX)) {
+}
+
+void turnLeft(int inX, int inY, unsigned long inArea) {
+	//Sharp turning
       if (inX < thresX-sharpX) {
         int sharpXDiff = thresX-sharpX-inX;
         if (sharpXDiff > 30)
@@ -103,9 +155,10 @@ void followCallback(const fydp::MoveData& msg) {
           turnSharpLeft(10);
          nh.loginfo("turning sharp left");
       }
+      //Smooth turning
       else {
+      	//scale to take distance into account as well i.e., when turning, we want to move it at approx same prev speed
         int scaledSpeed = (int)(1.0*(thresX-margX-inX)/20 + 10);
-        
         setRightWingSpeed(scaledSpeed);
         setLeftWingSpeed(3);
         nh.loginfo("turning left");
@@ -113,30 +166,20 @@ void followCallback(const fydp::MoveData& msg) {
         nh.loginfo("*****SPEED*****");
         nh.loginfo(ss.c_str());
       }
-     
-    }
-    else {
-      
+}
+
+void driveForward(int inX, int inY, unsigned long inArea) {
       int scaledSpeed = (int)((1.0*(thresA-inArea)/thresA)*10 + 6);
       setSpeed(scaledSpeed);
       String ss = String(scaledSpeed);
       nh.loginfo("*****SPEED*****");
       nh.loginfo(ss.c_str());
       nh.loginfo("driving forward");
-    }
-  }
-  // otherwise, stop
-  else {
-    nh.loginfo("STOP");
-    setSpeed(-2);
-    //stop();
-  }
-  
 }
 
-
-
 std_msgs::Bool pushed_msg;
+
+//Initialization of ROS publishers and subscribers
 ros::Subscriber<fydp::MoveData> init_sub("init", &initCallback);
 ros::Publisher pub_button("pushed", &pushed_msg);
 ros::Subscriber<fydp::MoveData> sub("follower", &followCallback);
@@ -149,6 +192,8 @@ long last_debounce_time=0;
 long debounce_delay=50;
 bool published = true;
 
+
+// MOTOR HANDLING
 void initializePins() {
   motor1.attach(motor1Pin);
   motor2.attach(motor2Pin);
