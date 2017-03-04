@@ -405,9 +405,9 @@ int main(int argc, char **argv) {
 		}
 	}
 	destroyAllWindows();
-	Mat background = imread("backgourd.jpg");//takePicture(cap);
-	imshow("", background);
-	waitKey(0);
+	//Mat background = takePicture(cap);
+	//imwrite("background_2.jpg", background);
+	Mat background = imread("background_2.jpg");
 	Mat background_hsv = load_hsv_image(background);
 
 	ROS_INFO("Taking person picture, press a");
@@ -422,7 +422,9 @@ int main(int argc, char **argv) {
 	destroyAllWindows();
 	ROS_INFO("Take picture of person agains green background");
 	// Take picture against green background
-	Mat original_image = imread("original_image.jpg"); //takePicture(cap);
+	//Mat original_image = takePicture(cap);
+	//imwrite("original_image_2.jpg", original_image);
+	Mat original_image = imread("original_image_2.jpg"); //takePicture(cap);
 	original_image = sharpen_image(original_image);
 	Mat person_hsv = load_hsv_image(original_image);
 	
@@ -475,17 +477,17 @@ int main(int argc, char **argv) {
 
 	//Sending init data to all nodes
 	ROS_INFO("Getting Initialization MoveData");
-	//Mat initImage;
+	Mat initImage;
 	fydp::MoveData initValues;
-	/*long sumArea = 0;
+	//long sumArea = 0;
 	
-	for (int i=0; i<5; i++) {
-		initImage =  load_hsv_image(takePicture(cap));
-		initImage = sharpen_image(initImage);
-		initValues = find_person_in_img(initImage, "");
-		sumArea += initValues.area; 
-	} 
-	*/
+	//for (int i=0; i<5; i++) {
+		//initImage =  load_hsv_image(takePicture(cap));
+		//initImage = sharpen_image(initImage);
+		//initValues = find_person_in_img(initImage, "");
+		//sumArea += initValues.area; 
+	//} 
+	
 	//initValues.area = sumArea/5;
 	initValues.area = 45000;
 	ROS_INFO("Initial Area: %d",initValues.area);

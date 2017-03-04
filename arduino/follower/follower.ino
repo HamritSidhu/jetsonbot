@@ -1,6 +1,3 @@
-/* 
- * Button Example for Rosserial
- */
 
 #include <ros.h>
 #include <std_msgs/Bool.h>
@@ -20,6 +17,8 @@ const int motor2Pin = 4;
 const int motor3Pin = 5;
 const int motor4Pin = 6;
 const int lockPin = 9;
+const int door1Pin = 10;
+const int door2Pin = 11;
 
 // 0 - 93 Reverse, > 93 Forward
 const int motor1StopPos = 93;
@@ -33,9 +32,10 @@ int margX = 20;
 long thresA = 0;
 long margA = 0;
 
-int sharpX = 90;
+int sharpX = 120;
 
 bool flag = false;
+bool locked = false;
 
 ros::NodeHandle nh;
 
@@ -58,56 +58,64 @@ void followCallback(const fydp::MoveData& msg) {
   String sx = String(inX);
   nh.loginfo(sx.c_str());
   
-//  int inY = msg.y;
-//  String sy = String(inY);
-//  nh.loginfo(sy.c_str());
+  int inY = msg.y;
+  String sy = String(inY);
+  nh.loginfo(sy.c_str());
   
   unsigned long inArea = msg.area;
   String sArea = String(inArea);
   nh.loginfo(sArea.c_str());
   
   // operation range: follow within 70% of the area
-  if (inArea <= thresA && inArea >= thresA*0.3) {
+  if (inArea <= thresA && inArea >= 5000 && inY>140) {
     if (inX > (thresX+margX)) {
       if (inX > thresX+sharpX) {
-        turnSharpRight(10);
+        int sharpXDiff = inX-thresX-sharpX;
+        if (sharpXDiff > 30)
+          turnSharpRight(11);
+        else
+          turnSharpRight(10);
         nh.loginfo("turning sharp right");
       }
       else {
-         setLeftWingSpeed(12);
+         int scaledSpeed = (int)(1.0*(inX-thresX-margX)/20 + 10);
+         setLeftWingSpeed(scaledSpeed);
          setRightWingSpeed(3);
          nh.loginfo("turning right");
+         String ss = String(scaledSpeed);
+         nh.loginfo("*****SPEED*****");
+         nh.loginfo(ss.c_str());
       }
-     
-      
-//      motor1.write(motor1StopPos);
-//      motor2.write(motor2StopPos);
-//      //moving back motors only
-//      motor3.write(motor3StopPos + 15);
-//      motor4.write(motor4StopPos - 5);
-      
       
     }
     else if (inX < (thresX-margX)) {
       if (inX < thresX-sharpX) {
-        turnSharpLeft(10);
+        int sharpXDiff = thresX-sharpX-inX;
+        if (sharpXDiff > 30)
+          turnSharpLeft(11);
+        else
+          turnSharpLeft(10);
          nh.loginfo("turning sharp left");
       }
       else {
-        setRightWingSpeed(12);
+        int scaledSpeed = (int)(1.0*(thresX-margX-inX)/20 + 10);
+        
+        setRightWingSpeed(scaledSpeed);
         setLeftWingSpeed(3);
-         nh.loginfo("turning left");
+        nh.loginfo("turning left");
+        String ss = String(scaledSpeed);
+        nh.loginfo("*****SPEED*****");
+        nh.loginfo(ss.c_str());
       }
-      
-//      motor1.write(motor1StopPos);
-//      motor2.write(motor2StopPos);
-//      //moving back motors only
-//      motor3.write(motor3StopPos + 5);
-//      motor4.write(motor4StopPos - 15);
      
     }
     else {
-      setSpeed(6);
+      
+      int scaledSpeed = (int)((1.0*(thresA-inArea)/thresA)*10 + 6);
+      setSpeed(scaledSpeed);
+      String ss = String(scaledSpeed);
+      nh.loginfo("*****SPEED*****");
+      nh.loginfo(ss.c_str());
       nh.loginfo("driving forward");
     }
   }
@@ -117,33 +125,6 @@ void followCallback(const fydp::MoveData& msg) {
     stop();
   }
   
-//  if (inArea > (thresA+margA)) {
-//    drive(-2);
-//    nh.loginfo("driving backward");
-//    if (inX > (thresX+margX)) {
-//      setRightWingSpeed(-8);
-//      nh.loginfo("turning right");
-//    }
-//    else if (inX < (thresX-margX)) {
-//      setLeftWingSpeed(-8);
-//      nh.loginfo("turning left");
-//    }
-//  }
-//  else if (inArea < (thresA-margA)) {
-//    drive(2);
-//    nh.loginfo("driving forward");
-//    if (inX > (thresX+margX)) {
-//      setLeftWingSpeed(8);
-//      nh.loginfo("turning right");
-//    }
-//    else if (inX < (thresX-margX)) {
-//      setRightWingSpeed(8);
-//      nh.loginfo("turning left");
-//    }
-//  }
-//  else {
-//    stop();
-//  } 
 }
 
 
@@ -212,6 +193,10 @@ void setup()
   //and a input pin for our push button
   pinMode(led_pin, OUTPUT);
   pinMode(button_pin, INPUT);
+  pinMode(door1Pin, INPUT);
+  pinMode(door2Pin, INPUT);
+  // Remove this line in prod, testing only
+  //Serial.begin(9600);
   
   //Enable the pullup resistor on the button
   digitalWrite(button_pin, HIGH);
@@ -228,8 +213,23 @@ void setup()
 void lockTest() {
   lock.write(90);
   delay(2000);
-  lock.write(180);
-  delay(2000);
+  lock.write(210);
+}
+
+boolean isDoorLocked() {
+  return (digitalRead(door1Pin) == HIGH && digitalRead(door2Pin) == HIGH);
+}
+
+void lockDoors() {
+  if (isDoorLocked()) {
+    lock.write(140);
+    locked = true;
+  }
+}
+
+void unlockDoors() {
+    lock.write(90);
+    locked = false;
 }
 
 void loop()
@@ -238,6 +238,14 @@ void loop()
 //    lockTest();
 //    flag = true;
 //  }
+    
+//    if (digitalRead(button_pin) == HIGH) {
+//      if (!locked) 
+//        lockDoors();
+//      else
+//        unlockDoors();
+//    }
+
   bool reading = ! digitalRead(button_pin);
   
   if (last_reading!= reading){
@@ -257,3 +265,4 @@ void loop()
   
   nh.spinOnce();
 }
+
