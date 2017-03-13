@@ -459,6 +459,7 @@ int main(int argc, char **argv) {
 	roi.width = filtered_person.size().width - (crop_x*2);
 	roi.height = filtered_person.size().height - crop_y_bottom; // Size 390 x 440
 	PERSON_TMPLT = resize_img(filtered_person(roi), 250); // Size 250 x 315
+	imwrite("tamplate.jpg", PERSON_TMPLT);
 
 	imshow("Template", PERSON_TMPLT);
 	ROS_INFO("Accept Template? y or n or q(quit)?");
@@ -505,7 +506,8 @@ int main(int argc, char **argv) {
 
 	Mat image, new_image; 
 	fydp::MoveData move_data;
-	//int i = 0;
+	int id = 0;
+	ofstream fout("recognition_data.txt");
 	while(!shutDown){
 		image = load_hsv_image(takePicture(cap));//imread("out/img_"+to_string(i)+".jpg"));
 		image = sharpen_image(image);
@@ -517,8 +519,13 @@ int main(int argc, char **argv) {
 		ROS_INFO("%d",move_data.y);
 		ROS_INFO("%d",move_data.area);
 		ros::spinOnce();
+		fout << "Id: " << to_string(id) << endl;
+		fout << "X: " << move_data.x << endl;
+		fout << "Y: " << move_data.y << endl;
+		fout << "A: " << move_data.area << endl;
+		id++;
 	}
-
+	fout.close();
 
         /* Part 2 */
         /*

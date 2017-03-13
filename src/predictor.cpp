@@ -1,12 +1,31 @@
 #include <ros/ros.h>
 #include <stdio.h>
 #include "fydp/MoveData.h"
+#include <iostream>
+#include <fstream>
+#include "std_msgs/Bool.h"
+
+using namespace std;
 
 bool callFlag = false;
-
+bool shutDown = false;
+bool calledOnce = false;
 const int queueSize = 4;
 fydp::MoveData moveDataQueue[queueSize];
 fydp::MoveData predictedData;
+
+
+
+void shutDownCallback(const std_msgs::Bool::ConstPtr& msg) {
+	if (msg->data == 1) {
+		if (!calledOnce) {
+			calledOnce = 1;
+		}
+		else {
+			shutDown = 1;
+		}
+	}
+}
 
 void initMoveDataQueue(const fydp::MoveData& msg) {
 	fydp::MoveData centroid;
@@ -22,22 +41,22 @@ void initMoveDataQueue(const fydp::MoveData& msg) {
 }
 
 fydp::MoveData predictMoveData() {
-        int counter = 0;
-        int firstOrderDifferenceSumX = 0;
-		int firstOrderDifferenceSumY = 0;
-        long firstOrderDifferenceSumArea = 0;
+        //int counter = 0;
+       // int firstOrderDifferenceSumX = 0;
+		//int firstOrderDifferenceSumY = 0;
+        //long firstOrderDifferenceSumArea = 0;
         
-        for (int i=0; i<queueSize-1; i++) {
-            firstOrderDifferenceSumX += (moveDataQueue[i+1].x - moveDataQueue[i].x);
-            firstOrderDifferenceSumY += (moveDataQueue[i+1].y - moveDataQueue[i].y);
-			firstOrderDifferenceSumArea += (moveDataQueue[i+1].area - moveDataQueue[i].area);
-        	counter++;
-        }
+        //for (int i=0; i<queueSize-1; i++) {
+        //    firstOrderDifferenceSumX += (moveDataQueue[i+1].x - moveDataQueue[i].x);
+        //    firstOrderDifferenceSumY += (moveDataQueue[i+1].y - moveDataQueue[i].y);
+	//		firstOrderDifferenceSumArea += (moveDataQueue[i+1].area - moveDataQueue[i].area);
+      //  	counter++;
+        //}
 
         // integer division here
-        int firstOrderDifferenceAverageX = firstOrderDifferenceSumX / counter;
-        int firstOrderDifferenceAverageY = firstOrderDifferenceSumY / counter;
-        long firstOrderDifferenceAverageArea = firstOrderDifferenceSumArea / counter;
+        int firstOrderDifferenceAverageX = moveDataQueue[queueSize - 1].x - moveDataQueue[queueSize - 2].x;// firstOrderDifferenceSumX / counter;
+        int firstOrderDifferenceAverageY = moveDataQueue[queueSize - 1].y - moveDataQueue[queueSize - 2].y;// firstOrderDifferenceSumY / counter;
+        long firstOrderDifferenceAverageArea = moveDataQueue[queueSize - 1].area - moveDataQueue[queueSize - 2].area;// firstOrderDifferenceSumArea / counter;
 
         predictedData.x = moveDataQueue[queueSize - 1].x + firstOrderDifferenceAverageX; 
         predictedData.y = moveDataQueue[queueSize - 1].y + firstOrderDifferenceAverageY;
@@ -87,9 +106,10 @@ int main(int argc, char **argv) {
 	ros::Subscriber in = nodeHanle.subscribe("init", 1000, initMoveDataQueue);
 	ros::Publisher pub = nodeHanle.advertise<fydp::MoveData>("follower", 1000);
 	ros::Subscriber sub = nodeHanle.subscribe("camera", 1000, predictionProcessing);
-	
-	
-	while(1) {
+	ros::Subscriber button_sub = nodeHanle.subscribe("pushed", 1000, shutDownCallback);
+	ofstream fout("predicted_data.txt");
+	int id = 0;
+	while(!shutDown) {
 		while(!callFlag) {
 			ros::spinOnce();
 		}
@@ -99,6 +119,13 @@ int main(int argc, char **argv) {
 		ROS_INFO("%d", result.y);
 		ROS_INFO("%d", result.area);
 		pub.publish(result);
+		fout << "Id: " << to_string(id) << endl;
+		fout << "X: " << result.x << endl;
+		fout << "Y: " << result.y << endl;
+		fout << "A: " << result.area << endl;
 		callFlag = false;
+		id++;
 	}
+	fout.close();
+	return 0;
 }

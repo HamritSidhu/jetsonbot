@@ -11,6 +11,7 @@ Servo motor2;
 Servo motor3;
 Servo motor4;
 Servo lock;
+Servo lock2;
 
 //Pin initialization
 const int motor1Pin = 3;
@@ -18,6 +19,7 @@ const int motor2Pin = 4;
 const int motor3Pin = 5;
 const int motor4Pin = 6;
 const int lockPin = 9;
+const int lock2Pin = 12;
 const int door1Pin = 10;
 const int door2Pin = 11;
 
@@ -33,13 +35,12 @@ int thresX = 250;
 int thresY = 0;
 long thresA = 0;
 
-// Previous values
-int prevY = 0;
-
 // margins
 int margX = 20;
 long margA = 0;
-int sharpX = 120;
+int sharpX = 100;
+
+int prevSpeed = 0;
 
 
 bool flag = false;
@@ -51,9 +52,8 @@ ros::NodeHandle nh;
 // Initialize required thresholds based on initial centroid data
 void initCallback(const fydp::MoveData& msg) {
    thresA = msg.area;
-   margA = thresA/15;
+   margA = thresA/10;
    thresY = msg.y;
-   prevY = thresY;
    
    nh.loginfo("Initial Area:");
    String a = String(thresA);
@@ -84,25 +84,34 @@ void followCallback(const fydp::MoveData& msg) {
   
   // operation range: follow if the person gets further from initial position
   // TODO: might have to make it more difficult to get into this loop (i.e., thresY+larger number)
-  if (inArea <= thresA-margA && inY>thresY+5 &&  inArea >= 5000) {
+  if (inArea <= thresA-margA && inY>thresY+30 &&  inArea >= 5000) {
     	follow(inX, inY, inArea);
   }
   // otherwise, stop
+//  else if (inY<thresY+10) {
+//    if (inX > (thresX+sharpX)) {
+//      turnSharpRight(8);
+//    }
+//    else if (inX < (thresX-sharpX)) {
+//      turnSharpLeft(8); 
+//    }
+//    else {
+//      nh.loginfo("STOP");
+////    setSpeed(-2);
+//      stop();
+//    }
+//  }
   else {
     nh.loginfo("STOP");
-    setSpeed(-2);
-    //stop();
-  }
-
-  prevY = inY;
-  
+    stop();
+  } 
 }
 
 
 void follow(int inX, int inY, unsigned long inArea) {
-	//Right turn
-	if (inX > (thresX+margX)) {
-		turnRight(inX, inY, inArea);  
+    //Right turn
+    if (inX > (thresX+margX)) {
+	turnRight(inX, inY, inArea);  
     }
     //Left turn
     else if (inX < (thresX-margX)) {
@@ -110,14 +119,7 @@ void follow(int inX, int inY, unsigned long inArea) {
     }
     //Move forward
     else {
-    	// check for change in y there. that is, if the change in y is small, don't move otherwise move (this accounts for if person is standing in one spot and moves around)	
-    	if (abs(inY - prevY) > 5) {
-    		driveForward(inX, inY, inArea); 
-    	}
-    	// otherwise stop
-    	else {
-    		setSpeed(-2);
-    	}
+    	driveForward(inX, inY, inArea); 
     }
 
 }
@@ -136,8 +138,9 @@ void turnRight(int inX, int inY, unsigned long inArea) {
       else {
       	 //scale to take distance into account as well. i.e., when turning, we want to move it at same prev speed
          int scaledSpeed = (int)(1.0*(inX-thresX-margX)/20 + 10);
-         setLeftWingSpeed(scaledSpeed);
-         setRightWingSpeed(3);
+         float distanceAdjustment = 1.0*(inY-thresY)/thresY*9;
+         setLeftWingSpeed((int)(scaledSpeed+distanceAdjustment));
+         setRightWingSpeed((int)(3+distanceAdjustment));
          nh.loginfo("turning right");
          String ss = String(scaledSpeed);
          nh.loginfo("*****SPEED*****");
@@ -158,9 +161,11 @@ void turnLeft(int inX, int inY, unsigned long inArea) {
       //Smooth turning
       else {
       	//scale to take distance into account as well i.e., when turning, we want to move it at approx same prev speed
+        // max scaledSpeed = 16;
         int scaledSpeed = (int)(1.0*(thresX-margX-inX)/20 + 10);
-        setRightWingSpeed(scaledSpeed);
-        setLeftWingSpeed(3);
+        float distanceAdjustment = 1.0*(inY-thresY)/thresY*9;
+        setRightWingSpeed((int)(scaledSpeed+distanceAdjustment));
+        setLeftWingSpeed((int)(3+distanceAdjustment));
         nh.loginfo("turning left");
         String ss = String(scaledSpeed);
         nh.loginfo("*****SPEED*****");
@@ -169,10 +174,23 @@ void turnLeft(int inX, int inY, unsigned long inArea) {
 }
 
 void driveForward(int inX, int inY, unsigned long inArea) {
-      int scaledSpeed = (int)((1.0*(thresA-inArea)/thresA)*10 + 6);
+      int scaledSpeed = (int)((1.0*(inY-thresY)/thresY)*13 + 6);
+      
+      if (scaledSpeed > 15) {
+          scaledSpeed = 15;
+      }
+      
+      if (scaledSpeed - prevSpeed >= 6) {
+        while (prevSpeed < scaledSpeed) {
+          setSpeed(prevSpeed+2);
+          delay(200);
+          prevSpeed = prevSpeed + 2;
+        }
+      }
       setSpeed(scaledSpeed);
+      prevSpeed = scaledSpeed;
       String ss = String(scaledSpeed);
-      nh.loginfo("*****SPEED*****");
+      nh.loginfo("*****SPEED*****");                                
       nh.loginfo(ss.c_str());
       nh.loginfo("driving forward");
 }
@@ -202,7 +220,8 @@ void initializePins() {
 }
 
 void stop() {
-  setSpeed(93);
+  setSpeed(90);
+  prevSpeed = 0;
 }
 
 void setSpeed(int speed) {
@@ -257,15 +276,35 @@ void setup()
   last_reading = ! digitalRead(button_pin);
   initializePins();
   lock.attach(lockPin);
-  lock.write(90);
+  lock.write(5);
+  lock2.attach(lock2Pin);
+  lock2.write(10);
   stop();
  
 }
 
 void lockTest() {
+  lock.write(5);
+  delay(2000);
   lock.write(90);
   delay(2000);
-  lock.write(210);
+
+}
+
+void lock2Test() {
+  lock2.write(10);
+  delay(2000);
+  lock2.write(95);
+  delay(2000);
+}
+
+void runLocksTest() {
+  lock.write(5);
+  lock2.write(10);
+  delay(500);
+  lock.write(90);
+  lock2.write(95);
+  delay(500);
 }
 
 boolean isDoorLocked() {
@@ -274,20 +313,24 @@ boolean isDoorLocked() {
 
 void lockDoors() {
   if (isDoorLocked()) {
-    lock.write(140);
+    lock.write(90);
+    lock2.write(95);
+    delay(500);
     locked = true;
   }
 }
 
 void unlockDoors() {
-    lock.write(90);
+    lock.write(5);
+    lock2.write(10);
+    delay(500);
     locked = false;
 }
 
 void loop()
 {
 //  if (!flag) {
-//    lockTest();
+//    runLocksTest();
 //    flag = true;
 //  }
     
